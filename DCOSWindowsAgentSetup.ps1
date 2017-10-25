@@ -74,16 +74,16 @@ Write-Log($message)
     Write-Output $msg
 }
 
-function
-Expand-ZIPFile($file, $destination)
-{
-    $shell = new-object -com shell.application
-    $zip = $shell.NameSpace($file)
-    foreach($item in $zip.items())
-    {
-        $shell.Namespace($destination).copyhere($item, 0x14)
-    }
-}
+#function
+#Expand-ZIPFile($file, $destination)
+#{
+#    $shell = new-object -com shell.application
+#    $zip = $shell.NameSpace($file)
+#    foreach($item in $zip.items())
+#    {
+#        $shell.Namespace($destination).copyhere($item, 0x14)
+#    }
+#}
 
 
 function 
@@ -124,7 +124,8 @@ Get-DCOSBinaries($download_uri, $download_dir)
     $dir = New-Item -ItemType "directory" -Path $global:MesosWorkDir -force
     $dir = New-Item -ItemType "directory" -Path $global:MesosLogDir -force
 
-    Expand-ZIPFile -File ($download_dir+"\"+$zipfile) -Destination $global:MesosLaunchDir
+    #Expand-ZIPFile -File ($download_dir+"\"+$zipfile) -Destination $global:MesosLaunchDir
+    Expand-Archive -Path ($download_dir+"\"+$zipfile) -DestinationPath $global:MesosLaunchDir
 
     # Get nssm runtime (This should be folded into packages
 
