@@ -25,6 +25,8 @@ $ErrorActionPreference = "Stop"
 $SCRIPTS_REPO_URL = "https://github.com/dcos/dcos-windows"
 $SCRIPTS_DIR = Join-Path $env:TEMP "dcos-windows"
 $MESOS_BINARIES_URL = "$BootstrapUrl/mesos.zip"
+$DIAGNOSTICS_BINARIES_URL = "$BootstrapUrl/diagnostics.zip"
+$METRICS_BINARIES_URL = "$BootstrapUrl/metrics.zip"
 
 function Add-ToSystemPath {
     Param(
@@ -153,6 +155,27 @@ function Install-SpartanAgent {
     }
 }
 
+function Install-AdminRouterAgent {
+    & "$SCRIPTS_DIR\scripts\adminrouter-agent-setup.ps1" -AgentPrivateIP $AgentPrivateIP
+    if($LASTEXITCODE) {
+        Throw "Failed to setup the DCOS AdminRouter Windows agent"
+    }
+}
+
+function Install-DiagnosticsAgent {
+    & "$SCRIPTS_DIR\scripts\diagnostics-agent-setup.ps1" -DiagnosticsWindowsBinariesURL $DIAGNOSTICS_BINARIES_URL
+    if($LASTEXITCODE) {
+        Throw "Failed to setup the DCOS Diagnostics Windows agent"
+    }
+}
+
+function Install-MetricsAgent {
+    & "$SCRIPTS_DIR\scripts\metrics-agent-setup.ps1" -MetricsWindowsBinariesURL $METRICS_BINARIES_URL
+    if($LASTEXITCODE) {
+        Throw "Failed to setup the DCOS Metrics Windows agent"
+    }
+}
+
 function Update-Docker {
     $dockerHome = Join-Path $env:ProgramFiles "Docker"
     $baseUrl = "http://dcos-win.westus.cloudapp.azure.com/downloads/docker"
@@ -200,6 +223,7 @@ function New-DCOSEnvironmentFile {
         New-Item -ItemType "Directory" -Path $DCOS_DIR
     }
     $envFile = Join-Path $DCOS_DIR "environment"
+    $masterIPs = Get-MasterIPs
     Write-Output "Trying to find the DC/OS version by querying the API of the masters: $($masterIPs -join ', ')"
     $dcosVersion = Get-DCOSVersion
     Set-Content -Path $envFile -Value @(
@@ -208,16 +232,32 @@ function New-DCOSEnvironmentFile {
     )
 }
 
+function New-DCOSServiceWrapper {
+    . "$SCRIPTS_DIR\scripts\variables.ps1"
+    $parent = Split-Path -Parent -Path $SERVICE_WRAPPER
+    if(!(Test-Path -Path $parent)) {
+        New-Item -ItemType "Directory" -Path $parent
+    }
+    Start-ExecuteWithRetry { Invoke-WebRequest -UseBasicParsing -Uri $SERVICE_WRAPPER_URL -OutFile $SERVICE_WRAPPER }
+}
+
 
 try {
     New-ScriptsDirectory
     Update-Docker
     New-DockerNATNetwork
     New-DCOSEnvironmentFile
+    New-DCOSServiceWrapper
     Install-MesosAgent
     Install-ErlangRuntime
     Install-EPMDAgent
     Install-SpartanAgent
+    Install-AdminRouterAgent
+    Install-MetricsAgent
+
+    # To get collect a complete list of services for node health monitoring,
+    # the Diagnostics needs always to be the last one to install
+    Install-DiagnosticsAgent
 } catch {
     Write-Output $_.ToString()
     exit 1
